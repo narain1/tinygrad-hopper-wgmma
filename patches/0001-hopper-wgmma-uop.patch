@@ -1,0 +1,254 @@
+--- a/tinygrad/uop/__init__.py
++++ b/tinygrad/uop/__init__.py
+@@ -52,6 +52,11 @@
+   # tensor core math op, not elementwise
+   WMMA = auto()
+ 
++  # async warpgroup matrix-multiply-accumulate (Hopper wgmma.mma_async): A,B from shared memory via
++  # descriptors, C accumulated in registers, warpgroup of 128 threads. src=(a_smem, b_smem, acc_reg),
++  # arg=(dims(M,N,K), dtype_in, scale_d). output dtype/shape = accumulator (src[2]).
++  WGMMA = auto()
++
+   # UnaryOps
+   CAST = auto(); BITCAST = auto(); EXP2 = auto(); LOG2 = auto(); SIN = auto()
+   SQRT = auto(); RECIP = auto(); NEG = auto(); TRUNC = auto()
+@@ -117,7 +122,7 @@
+   Movement = {Ops.RESHAPE, Ops.EXPAND, Ops.PERMUTE, Ops.PAD, Ops.SHRINK}
+ 
+   # ops that may have a side effect each time they run
+-  Effect = {Ops.STORE, Ops.CUSTOM, Ops.CALL, Ops.BARRIER}
++  Effect = {Ops.STORE, Ops.CUSTOM, Ops.CALL, Ops.BARRIER, Ops.WGMMA}
+ 
+   # BinaryOps that can be flipped
+   Commutative = {Ops.ADD, Ops.MUL, Ops.MAX, Ops.CMPNE, Ops.CMPEQ, Ops.XOR, Ops.AND, Ops.OR}
+--- a/tinygrad/uop/ops.py
++++ b/tinygrad/uop/ops.py
+@@ -156,6 +156,9 @@
+     case Ops.WMMA:
+       # WMMA output dtype is the accumulator dtype (src[2])
+       return src[2].dtype
++    case Ops.WGMMA:
++      # async warpgroup mma mutates the accumulator in place; it's a void statement (effect).
++      return dtypes.void
+     case Ops.GETADDR:
+       return dtypes.uint64
+     case Ops.THREEFRY:
+@@ -365,6 +368,10 @@
+       case Ops.WMMA:
+         wmma_b = _broadcast_shape(self.src[0].shape[:-1], self.src[1].shape[:-1], self.src[2].shape[:-1])
+         return wmma_b + (self.src[2].shape[-1],)
++
++      # wgmma mutates the accumulator in place; void effect, no shape
++      case Ops.WGMMA:
++        return None
+ 
+       # passthrough ops
+       case Ops.MSTACK | Ops.MSELECT | Ops.DETACH | Ops.CONTIGUOUS_BACKWARD | Ops.AFTER | Ops.LOAD | \
+@@ -621,6 +628,24 @@
+   def wmma(a:UOp, b:UOp, acc:UOp, dims:tuple[int, int, int], threads:int, tc_upcast_axes=None):
+     # dtype_in is stored in the arg (not derived from src[0].dtype) because bitcast rewrites change src dtypes
+     return UOp(Ops.WMMA, src=(a, b, acc), arg=(dims, a.dtype, threads, tc_upcast_axes))
++  @staticmethod
++  def wgmma(a:UOp, b:UOp, acc:UOp, dims:tuple[int, int, int], dtype_in:DType, scale_d:int|UOp=1, gate:UOp|None=None,
++            a_regs:int=0, tnsp_b:bool=False, b_lbo:int=16, wait:int=0):
++    # async warpgroup mma over a K-chunk. a,b are shared-memory pointers (INDEX of a LOCAL buffer) to 128B-swizzled
++    # K-major tiles, acc is a REG buffer. dims=(M,N,K) with K a multiple of 16: renders as ONE asm block doing
++    # fence, K/16 mma_async (descriptors advance 32 bytes per step), commit, wait.
++    # scale_d (first step only): 0 => C=A*B, 1 => C+=A*B; an int UOp makes it runtime (skip zeroing the accumulator).
++    # gate: optional warp-uniform bool, e.g. the warpgroup role in warp specialization.
++    # src = (a, b, acc[, gate][, scale_d]); arg = (dims, dtype_in, scale_d if static else -1, has_gate)
++    # a_regs: 1 = A is a REG fp32 array in the m64nKk16 accumulator layout (packed to dtype_in inside), e.g. P in
++    # attention; 2 = A is already packed (REG uint32 array, 4 regs per k16 step).
++    # tnsp_b: B is MN-major (N contiguous) with 64-wide N chunks b_lbo bytes apart. wait: 0 self-contained,
++    # n > 0 leaves n groups in flight, < 0 no wait.
++    assert dims[2] % 16 == 0, f"wgmma K must be a multiple of 16, got {dims}"
++    srcs = (a, b, acc) + ((gate,) if gate is not None else ()) + ((scale_d,) if isinstance(scale_d, UOp) else ())
++    arg: tuple = (dims, dtype_in, -1 if isinstance(scale_d, UOp) else scale_d, gate is not None)
++    if a_regs or tnsp_b or wait != 0: arg += ((int(a_regs), tnsp_b, b_lbo, wait),)
++    return UOp(Ops.WGMMA, src=srcs, arg=arg)
+   def _rop(self, op:Ops, axis:tuple[int, ...]):
+     # NOTE: we don't allow reduce on 1s axis
+     axis = tuple(sorted(axis))
+--- a/tinygrad/uop/spec.py
++++ b/tinygrad/uop/spec.py
+@@ -137,6 +137,9 @@
+ 
+   # WMMA has a <a, b, acc>
+   (UPat(Ops.WMMA, src=(UPat(), UPat(), UPat()), name="x"), lambda x: isinstance(x.arg, tuple) and len(x.arg) == 4),
++  (UPat(Ops.WGMMA, name="x"), lambda x: isinstance(x.arg, tuple) and len(x.arg) in (4, 5) and isinstance(x.arg[0], tuple)
++   and len(x.arg[0]) == 3 and x.arg[0][2] % 16 == 0 and len(x.src) == 3 + int(x.arg[3]) + int(x.arg[2] == -1)
++   and (not x.arg[3] or x.src[3].dtype == dtypes.bool)),
+ ])
+ 
+ def is_device(d): return isinstance(d, str) or (isinstance(d, tuple) and all(isinstance(s, str) for s in d))
+--- a/tinygrad/helpers.py
++++ b/tinygrad/helpers.py
+@@ -18,6 +18,11 @@
+ BASEDIR = pathlib.Path(__file__).parent
+ 
+ def dedup(x:Iterable[T]): return list(dict.fromkeys(x))   # retains list order
++def sm_version(arch:str) -> int: return int(arch[3:].rstrip("af"))   # "sm_90a" -> 90, "sm_89" -> 89
++def nv_arch(major:int, minor:int) -> str:
++  # Hopper: target the arch-specific "sm_90a" so wgmma / setmaxnreg / TMA multicast are legal (not forward compatible;
++  # fine for JIT compiled kernels). Everything else keeps the portable target.
++  return f"sm_{major}{minor}" + ("a" if (major, minor) == (9, 0) else "")
+ def to_name(*parts:str) -> str: return "_".join(parts).replace(":", "_").lower()
+ def argfix(*x):
+   if x and x[0].__class__ in (tuple, list):
+--- a/tinygrad/renderer/cstyle.py
++++ b/tinygrad/renderer/cstyle.py
+@@ -4,7 +4,7 @@
+ from tinygrad.renderer import tc
+ from tinygrad.uop.ops import GroupOp, Ops, UOp, PatternMatcher, UPat, range_str, axis_letters
+ from tinygrad.uop.weak import commit_weak_consts
+-from tinygrad.helpers import strip_parens, getenv, prod, dedup, Target, IMAGE, FLOAT16, is_image_shape
++from tinygrad.helpers import strip_parens, getenv, prod, dedup, Target, IMAGE, FLOAT16, is_image_shape, sm_version
+ from tinygrad.dtype import dtypes, DType, AddrSpace, truncate, to_storage_scalar
+ from tinygrad.renderer import Renderer
+ 
+@@ -127,6 +127,71 @@
+ def wmma_args(uops:list[UOp]):
+   return dedup((_wmma_name(uop), uop.arg[0], uop.arg[1], uop.dtype, tuple(x.shape[-1] for x in uop.src)) for uop in uops if uop.op is Ops.WMMA)
+ 
++def _wgmma_mode(u:UOp) -> tuple[bool, bool, int, int]:
++  # (a_regs, tnsp_b, b_lbo, wait): arg[4] is optional so older 4-tuple args keep meaning SS, K-major B, wait 0
++  return u.arg[4] if len(u.arg) > 4 else (False, False, 16, 0)
++
++def _wgmma_name(u:UOp) -> str:
++  (m,n,k), din = u.arg[0], u.arg[1]
++  a_regs, tnsp_b, b_lbo, wait = _wgmma_mode(u)
++  return (f"tg_wgmma_m{m}n{n}k{k}_{din.name}_{u.src[2].dtype.name}" + ("_z" if u.arg[2] == 0 else "") +
++          ({0: "", 1: "_rs", 2: "_rsp"}[int(a_regs)]) +
++          (f"_tb{b_lbo}" if tnsp_b else "") + ("" if wait == 0 else ("_nw" if wait < 0 else f"_w{wait}")))
++
++# (name, dims(M,N,K), dtype_in, dtype_out, mode) for each distinct WGMMA variant
++def wgmma_args(uops:list[UOp]):
++  return dedup((_wgmma_name(uop), uop.arg[0], uop.arg[1], uop.src[2].dtype, _wgmma_mode(uop), uop.arg[2] == 0)
++               for uop in uops if uop.op is Ops.WGMMA)
++
++def _render_wgmma_helper(name:str, M:int, N:int, K:int, din:str, dout:str, mode=(False, False, 16, 0), zero=False) -> str:
++  # fence; K/16 x wgmma.mma_async (one asm statement each, like CUTLASS); commit; wait.
++  # A: SMEM descriptor (K-major, 128B swizzle; +32 bytes per k16 step) or, if a_regs, the fp32 accumulator-layout
++  #    fragment in registers (k16 step s = regs s*8..s*8+7, packed to bf16x2 here; this is the m64nNk16 C layout,
++  #    so a previous wgmma's result feeds straight in, e.g. P in attention).
++  # B: K-major (+32 bytes per step) or, if tnsp_b, MN-major 128B swizzle: rows of 128B along K (SBO = 8 rows = 1024),
++  #    64-wide MN chunks b_lbo bytes apart (LBO), +16 rows = 2048 bytes per k16 step.
++  # wait: 0 -> wait_group 0 inside (self-contained), n>0 -> wait_group n, <0 -> no wait (pair with an explicit wait).
++  # zero (static scale_d=0): step 0 writes d without reading it ("=f", no leading pin), so the old accumulator is dead
++  # before the op - otherwise e.g. last iteration's S stays live across the whole loop body (register pressure, C7512).
++  a_regs, tnsp_b, b_lbo, wait = mode
++  nreg, steps = N // 2, K // 16   # m64nNk16 accumulator: N/2 fp32 per thread (N = 8 has 4)
++  regs = "{" + ",".join(f"%{i}" for i in range(nreg)) + "}"
++  outs = ",".join(f'"+f"(d[{i}])' for i in range(nreg))
++  op = f"wgmma.mma_async.sync.aligned.m{M}n{N}k16.{dout}.{din}.{din}"
++  bstep = 128 if tnsp_b else 2
++  tail = f"1, 1, {1 if tnsp_b else 0}" if a_regs else f"1, 1, 0, {1 if tnsp_b else 0}"
++  # CUTLASS warpgroup_fence_operand: pin every accumulator register on both sides of the async region, otherwise ptxas
++  # may materialize copies of them inside it (C7515) and serialize all the mma_async with a wait after each one.
++  pin = f'  _Pragma("unroll") for(int i=0;i<{nreg};i++) asm volatile("" : "+f"(d[i]) :: "memory");'
++  body = [] if zero else [pin]
++  if a_regs == 1:
++    body.append(f"  unsigned pa[{4*steps}]; _Pragma(\"unroll\") for(int i=0;i<{4*steps};i++)"
++                " { __nv_bfloat162 v=__floats2bfloat162_rn(a[2*i],a[2*i+1]); pa[i]=*(unsigned*)&v; }")
++  body.append('  asm volatile("wgmma.fence.sync.aligned;" ::: "memory");')
++  # operands: %0..%nreg-1 = d, %nreg = B descriptor, then A (1 descriptor or 4 packed regs), then scale_d (step 0)
++  na = 4 if a_regs else 1
++  aop = "{" + ",".join(f"%{nreg+1+i}" for i in range(4)) + "}" if a_regs else f"%{nreg+1}"
++  for st in range(steps):
++    ain = ",".join(f'"r"(pa[{4*st+i}])' for i in range(4)) if a_regs else f'"l"(da+{2*st})'
++    ins = f'"l"(db+{bstep*st}), {ain}'
++    if st == 0 and zero:
++      body.append(f'  asm volatile("{op} {regs}, {aop}, %{nreg}, 0, {tail};" : {outs.replace("+f", "=f")} : {ins});')
++    elif st == 0:
++      body.append(f'  asm volatile("{{\\n.reg .pred p;\\nsetp.ne.b32 p, %{nreg+1+na}, 0;\\n{op} {regs}, {aop}, %{nreg}, p, {tail};\\n}}"'
++                  f' : {outs} : {ins}, "r"(scale_d));')
++    else:
++      body.append(f'  asm volatile("{op} {regs}, {aop}, %{nreg}, 1, {tail};" : {outs} : {ins});')
++  body.append('  asm volatile("wgmma.commit_group.sync.aligned;" ::: "memory");')
++  if wait >= 0: body.append(f'  asm volatile("wgmma.wait_group.sync.aligned {wait};" ::: "memory");')
++  # no trailing pin when the op is left in flight: touching d before the wait would make ptxas serialize it
++  if wait >= 0: body.append(pin)
++  bdesc = f"tg_wgmma_desc(b,{b_lbo},1024)" if tnsp_b else "tg_wgmma_desc(b,16,1024)"
++  adecl = "" if a_regs else "unsigned long da=tg_wgmma_desc(a,16,1024); "
++  atype = {0: "void*", 1: "float*", 2: "unsigned*"}[int(a_regs)]
++  if a_regs == 2: body.insert(0, "  unsigned* pa=a;")
++  return (f"__device__ __forceinline__ void {name}(float* d, {atype} a, void* b, int scale_d) " + "{\n"
++          f"  {adecl}unsigned long db={bdesc};\n" + "\n".join(body) + "\n}")
++
+ class CStyleLanguage(Renderer):
+   abi: str = ""
+   kernel_typedef: str = "void"
+@@ -450,6 +515,8 @@
+   string_rewrite = PatternMatcher([
+     (UPat(Ops.BITCAST, name="x"), lambda ctx,x: f"tg_bitcast<{ctx.render_dtype(x.dtype)}>(({ctx.render_dtype(x.src[0].dtype)})({ctx[x.src[0]]}))"
+      if x.addrspace not in (AddrSpace.GLOBAL, AddrSpace.LOCAL) else None),
++    (UPat(Ops.WGMMA, name="x"), lambda ctx,x: (f"if ({ctx[x.src[3]]}) " if x.arg[3] else "") +
++     f"{_wgmma_name(x)}({ctx[x.src[2]]}, {ctx[x.src[0]]}, {ctx[x.src[1]]}, {ctx[x.src[-1]] if x.arg[2] == -1 else x.arg[2]});"),
+   ]) + base_rewrite
+ 
+   def render_vector_prefix(self, dt:DType, count:int) -> str:
+@@ -483,11 +550,25 @@
+     : {", ".join([f'"+r"(c_pk[{i}])' for i in range(n_operands[2])])}
+     : {", ".join([f'"r"(a_pk[{i}])' for i in range(n_operands[0])])}, {", ".join([f'"r"(b_pk[{i}])' for i in range(n_operands[1])])});
+   return c;\n}}""")
++
++    # async warpgroup mma (Hopper wgmma). Each op is self-contained: build smem descriptors, fence,
++    # mma_async, commit, wait. A/B come from shared memory; C is a register accumulator array.
++    wg = list(wgmma_args(uops))
++    if wg:
++      if "#include <cuda_bf16.h>" not in prefix: prefix.append("#include <cuda_bf16.h>")  # bf16 wgmma kernels move bf16 data
++      prefix.append(
++        "__device__ __forceinline__ unsigned long tg_wgmma_desc(void* p, int lead, int stride){"
++        " unsigned int a=(unsigned int)__cvta_generic_to_shared(p);"
++        " unsigned long d=(((unsigned long)a&0x3FFFF)>>4);"
++        " d|=(((unsigned long)lead&0x3FFFF)>>4)<<16; d|=(((unsigned long)stride&0x3FFFF)>>4)<<32;"
++        " d|=1UL<<62; return d; }")
++    for name, (M, N, K), dtype_in, dtype_out, mode, zero in wg:
++      prefix.append(_render_wgmma_helper(name, M, N, K, dt_map_in[dtype_in], dt_map_out[dtype_out], mode, zero))
+ 
+     return super().render_kernel(function_name, kernel, bufs, uops, prefix=prefix)
+ 
+   def supported_dtypes(self):
+-    ver = int(self.target.arch[3:])
++    ver = sm_version(self.target.arch)
+     return {d for d in super().supported_dtypes() if (d != dtypes.half or ver >= 53) and (d != dtypes.bfloat16 or ver >= 80)
+             and (d not in dtypes.fp8_ocp or ver >= 89) and d not in dtypes.fp8_fnuz}
+ 
+--- a/tinygrad/runtime/ops_cuda.py
++++ b/tinygrad/runtime/ops_cuda.py
+@@ -1,7 +1,7 @@
+ from __future__ import annotations
+ import ctypes, functools, mmap, struct, time
+ from typing import Any, Callable
+-from tinygrad.helpers import DEBUG, DEV, getenv, unwrap, to_name
++from tinygrad.helpers import DEBUG, DEV, getenv, unwrap, to_name, nv_arch
+ from tinygrad.device import Device, Buffer, BufferStorage, BufferSpec, Allocator, Compiled, MMIOInterface, HCQ_RUNTIME_DEV
+ from tinygrad.dtype import dtypes
+ from tinygrad.uop.ops import Ops, UOp, UPat, PatternMatcher, KernelInfo
+@@ -109,7 +109,7 @@ class CUDADevice(Compiled):
+ 
+   def get_arch(self, device_id:int) -> str:
+     check(cuda.cuDeviceComputeCapability(ctypes.byref(major:=ctypes.c_int()), ctypes.byref(minor:=ctypes.c_int()), device_id))
+-    return f"sm_{major.value}{minor.value}"
++    return nv_arch(major.value, minor.value)
+ 
+   @functools.cache
+   def function(self, lib:bytes, name:str) -> bytes:
+--- a/tinygrad/renderer/tc.py
++++ b/tinygrad/renderer/tc.py
+@@ -2,6 +2,7 @@
+ from dataclasses import dataclass
+ from tinygrad.dtype import DType, dtypes
+ from tinygrad.uop.ops import PatternMatcher, UOp, UPat, Ops
++from tinygrad.helpers import sm_version
+ 
+ @dataclass(frozen=True)
+ class TensorCore: # D = A * B + C, A is (M x K), B is (K x N), C and D are (M x N)
+@@ -65,6 +66,6 @@
+ cuda_sm80: list[TensorCore] = cuda_81616 + cuda_8168_f16 + cuda_8168_tf32
+ cuda_sm89: list[TensorCore] = cuda_sm80 + cuda_81632_f8
+ 
+-def get_cuda(arch): return cuda_sm89 if (ver:=int(arch[3:])) >= 89 else cuda_sm80 if ver >= 80 else cuda_sm75 if ver >= 75 else []
++def get_cuda(arch): return cuda_sm89 if (ver:=sm_version(arch)) >= 89 else cuda_sm80 if ver >= 80 else cuda_sm75 if ver >= 75 else []
+ 
+ # ***** AMD *****

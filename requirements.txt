@@ -1,0 +1,2 @@
+-e .
+# tinygrad is supplied by the pinned ./tinygrad submodule after patches are applied.
