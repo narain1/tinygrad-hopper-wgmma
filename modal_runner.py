@@ -95,6 +95,12 @@ def _jobs(action: str) -> list[dict]:
     return jobs + [tg("stock-4096", "4096", "", "^r_", ["--stock"])]
   if action == "shapes":
     return [tg(f"shape-{s}", s, SWEEP_CONFIGS, "hopper|nvjet|sm90", ["--torch", "--check"]) for s in SHAPES]
+  if action == "inflight":
+    return [tg(f"inflight-{n}", n, "tma_store,hilbert,tma_store_w1,hilbert_w1", "hopper|nvjet|sm90", ["--torch", "--check"])
+            for n in ("4096", "8192")]
+  if action == "tune":
+    return [tg(f"tune-{n}", n, "hilbert,h_n128_s4,h_n128_s5,h_n128_s6,h_n128_s6_132,h_n256_s3_g8x8", "hopper|nvjet|sm90", ["--torch", "--check"])
+            for n in ("4096", "8192")]
   if action == "sm132":
     return [tg("sm132-4096", "4096", "tma_store,tma_store_132", "hopper|nvjet|sm90", ["--torch", "--check"])]
   if action == "fastcu":

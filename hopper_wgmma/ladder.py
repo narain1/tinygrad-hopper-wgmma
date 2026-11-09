@@ -11,6 +11,8 @@ LADDER = {
   "role_split_regs": WSCfg(regs=(24, 240)),                       # role_split + setmaxnreg (experimental, expected no effect)
   "tma_store": WSCfg(tma_store=True),                             # + stmatrix/TMA-store epilogue
   "hilbert": WSCfg(tma_store=True, hilbert=True),                 # + Hilbert tile order
+  "tma_store_w1": WSCfg(tma_store=True, inflight=True),            # EXPERIMENT: one wgmma group kept in flight
+  "hilbert_w1": WSCfg(tma_store=True, hilbert=True, inflight=True),
   "cluster": WSCfg(tma_store=True, cluster=2),                    # clusters of 2 with multicast B (instead of Hilbert)
   "cluster_hilbert": WSCfg(tma_store=True, hilbert=True, cluster=2),
 }
@@ -34,4 +36,13 @@ SWEEP = {
 # One-off comparisons quoted in the blog post.
 EXTRA = {
   "tma_store_132": WSCfg(tma_store=True, num_sm=132),   # all SMs instead of 128: 512 tiles / 132 CTAs leaves a partial wave
+}
+
+# Tuning experiments (not part of the published ladder): tile width and ring depth trade shared memory against occupancy.
+TUNE = {
+  "h_n128_s4": WSCfg(BN=128, stages=4, tma_store=True, hilbert=True),
+  "h_n128_s5": WSCfg(BN=128, stages=5, tma_store=True, hilbert=True),
+  "h_n128_s6": WSCfg(BN=128, stages=6, tma_store=True, hilbert=True),
+  "h_n128_s6_132": WSCfg(BN=128, stages=6, tma_store=True, hilbert=True, num_sm=132),
+  "h_n256_s3_g8x8": WSCfg(tma_store=True, hilbert=True, group_m=8),
 }

@@ -124,6 +124,11 @@ def cluster_sync(dep: UOp) -> UOp:
   return _custom('asm volatile("barrier.cluster.arrive.release.aligned; barrier.cluster.wait.acquire.aligned;" ::: "memory"); (void){0};', dep)
 
 
+def wgmma_wait(n: int, dep: UOp) -> UOp:
+  """wgmma.wait_group n: block until at most n committed wgmma groups of this warpgroup are still running"""
+  return _custom('asm volatile("wgmma.wait_group.sync.aligned %d;" ::: "memory"); (void){0};' % n, dep)
+
+
 def setmaxnreg(n: int, inc: bool, dep: UOp, gate: UOp | None) -> UOp:
   """EXPERIMENTAL. ptxas only honors this when everything after it is dominated by it (use inside a region(), not under
   a gate). ``build_gemm_ws`` gates it, so ``WSCfg.regs`` has no measurable effect (see the README)."""
@@ -251,6 +256,7 @@ class WSCfg:
   regs: tuple[int, int] | None = None   # EXPERIMENTAL setmaxnreg (producer, consumer); no measurable effect, see README
   cluster: int = 1             # 2: a CTA pair shares one multicast B tile
   hilbert: bool = False        # Hilbert tile order from a host-built table
+  inflight: bool = False       # EXPERIMENT: keep one wgmma group in flight (wait_group 1), release the previous stage late
 
   def __post_init__(self):
     if self.BK != 64: raise ValueError("BK must be 64 (one 128-byte swizzle atom)")
@@ -281,7 +287,7 @@ class WSCfg:
   def smem_bytes(self): return ((self.a_elems + self.b_elems) * self.stages + self.c_elems) * 2 + Ring.BYTES_PER_STAGE * self.stages
   @property
   def name(self): return (f"ws_c{self.consumers}_s{self.stages}_n{self.BN}_sm{self.num_sm}_g{self.group_m}x{self.group_n}"
-                          f"{'_tmast' if self.tma_store else ''}{'_hil' if self.hilbert else ''}"
+                          f"{'_tmast' if self.tma_store else ''}{'_hil' if self.hilbert else ''}{'_w1' if self.inflight else ''}"
                           f"{f'_r{self.regs[0]}x{self.regs[1]}' if self.regs else ''}{f'_cl{self.cluster}' if self.cluster > 1 else ''}")
 
 
@@ -361,8 +367,12 @@ def build_gemm_ws(N: int, cfg: WSCfg, M: int | None = None, K: int | None = None
     s, ph = ring.slot(ti * NK + k)
     wf = mbar_wait(ring.full(s, UOp.group(prod, ti, k)), ph, None)
     mm = UOp.wgmma(smem.after(wf)[s * cfg.a_elems + ci * (64 * BK)], sB(s, wf), acc.after(prod, ti, k, wf)[0], (64, BN, BK),
-                   dtypes.bfloat16, scale_d=k.ne(0).cast(dtypes.int))
-    kl = ring.release(s, mm, tid).end(k)
+                   dtypes.bfloat16, scale_d=k.ne(0).cast(dtypes.int), wait=-1 if cfg.inflight else 0)
+    if cfg.inflight:
+      # wgmma k may still run; wgmma k-1 is done after wait_group 1, so its stage can be refilled now
+      kl = ring.release((s + QS - 1) % QS, wgmma_wait(1, smem.after(mm)[0]), tid, k.ne(0)).end(k)
+      kl = ring.release((ti * NK + NK - 1) % QS, wgmma_wait(0, smem.after(kl)[0]), tid)   # drain, free the tile's last stage
+    else: kl = ring.release(s, mm, tid).end(k)
     bm, bn = tile_rc(ti)
     if cfg.tma_store:
       st = epilogue_tma_store(smem.after(kl)[C_OFF + ci * (64 * BN)], acc.after(kl)[0], tC.flatten()[0], bm * BM + ci * 64,

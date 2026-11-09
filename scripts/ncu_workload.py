@@ -17,7 +17,7 @@ install_runtime_hooks()
 
 from tinygrad import Device, Tensor, dtypes  # noqa: E402
 
-from hopper_wgmma.ladder import EXTRA, LADDER, SWEEP, build  # noqa: E402
+from hopper_wgmma.ladder import EXTRA, LADDER, SWEEP, TUNE, build  # noqa: E402
 
 
 def parse_shape(text: str) -> tuple[int, int, int]:
@@ -51,7 +51,7 @@ def main() -> int:
     Device["CUDA"].synchronize()
     print(f"KERNEL stock {M}x{N}x{K}")
   for name in [n for n in args.configs.split(",") if n]:
-    cfg = {**LADDER, **SWEEP, **EXTRA}[name]
+    cfg = {**LADDER, **SWEEP, **EXTRA, **TUNE}[name]
     try:
       run = build(N, cfg, M, K)
       launch = run(a, b, c)
