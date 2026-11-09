@@ -1,0 +1,50 @@
+[
+ {
+  "label": "shape-512",
+  "rc": 0
+ },
+ {
+  "label": "shape-1024",
+  "rc": 0
+ },
+ {
+  "label": "shape-1536",
+  "rc": 0
+ },
+ {
+  "label": "shape-2048",
+  "rc": 0
+ },
+ {
+  "label": "shape-3072",
+  "rc": 0
+ },
+ {
+  "label": "shape-4096",
+  "rc": 0
+ },
+ {
+  "label": "shape-6144",
+  "rc": 0
+ },
+ {
+  "label": "shape-8192",
+  "rc": 0
+ },
+ {
+  "label": "shape-4096x8192x4096",
+  "rc": 0
+ },
+ {
+  "label": "shape-4096x11008x4096",
+  "rc": 0
+ },
+ {
+  "label": "shape-1024x16384x4096",
+  "rc": 0
+ },
+ {
+  "label": "shape-8192x8192x1024",
+  "rc": 0
+ }
+]

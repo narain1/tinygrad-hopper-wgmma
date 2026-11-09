@@ -1,0 +1,38 @@
+==WARNING== Note: Running with uncontrolled GPU caches. Profiling results may be inconsistent.
+==WARNING== Note: Running with unmodified GPU clocks. If not controlled otherwise, profiling results may be inconsistent.
+==PROF== Connected to process 77 (/usr/local/bin/python3)
+CHECK role_split rel=0.00000 max|ref|=245.0 ok
+KERNEL role_split hopper_2048_ws_c2_s3_n256_sm128_g16x8
+CHECK tma_store rel=0.00000 max|ref|=245.0 ok
+KERNEL tma_store hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast
+CHECK hilbert rel=0.00000 max|ref|=245.0 ok
+KERNEL hilbert hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast_hil
+SKIP tma_store_n192: shape 2048x2048x2048 not a multiple of tile 128x192x64
+SKIP hilbert_n192: shape 2048x2048x2048 not a multiple of tile 128x192x64
+KERNEL cublas torch
+==PROF== Disconnected from process 77
+"ID","Process ID","Process Name","Host Name","Kernel Name","Context","Stream","Block Size","Grid Size","Device","CC","Section Name","Metric Name","Metric Unit","Metric Value"
+"0","77","python3","127.0.0.1","nvjet_tst_256x128_64x4_1x2_h_bz_coopA_NNT","1","7","(384, 1, 1)","(2, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25600"
+"1","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","30784"
+"2","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","31392"
+"3","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","30208"
+"4","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","30048"
+"5","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","30304"
+"6","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","30272"
+"7","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25408"
+"8","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25664"
+"9","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25216"
+"10","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25216"
+"11","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25120"
+"12","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25088"
+"13","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast_hil","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25824"
+"14","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast_hil","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25888"
+"15","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast_hil","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25728"
+"16","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast_hil","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25504"
+"17","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast_hil","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25440"
+"18","77","python3","127.0.0.1","hopper_2048_ws_c2_s3_n256_sm128_g16x8_tmast_hil","1","13","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","25376"
+"19","77","python3","127.0.0.1","nvjet_tst_256x128_64x4_1x2_h_bz_coopA_NNT","1","7","(384, 1, 1)","(2, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","26208"
+"20","77","python3","127.0.0.1","nvjet_tst_256x128_64x4_1x2_h_bz_coopA_NNT","1","7","(384, 1, 1)","(2, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","24416"
+"21","77","python3","127.0.0.1","nvjet_tst_256x128_64x4_1x2_h_bz_coopA_NNT","1","7","(384, 1, 1)","(2, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","24352"
+"22","77","python3","127.0.0.1","nvjet_tst_256x128_64x4_1x2_h_bz_coopA_NNT","1","7","(384, 1, 1)","(2, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","24384"
+"23","77","python3","127.0.0.1","nvjet_tst_256x128_64x4_1x2_h_bz_coopA_NNT","1","7","(384, 1, 1)","(2, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","24512"

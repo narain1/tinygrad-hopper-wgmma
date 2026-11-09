@@ -1,0 +1,37 @@
+diff --git a/h100/matmul.cu b/h100/matmul.cu
+index eac907f..fff0ee3 100644
+--- a/h100/matmul.cu
++++ b/h100/matmul.cu
+@@ -8,6 +8,8 @@
+ #include <sys/time.h>
+ #include <unistd.h>
+ #include <ctime>
++#include <vector>
++#include <string>
+ #include <iostream>
+ #include <vector>
+ #include <random>
+@@ -136,7 +138,7 @@ int main() {
+   cudaEventCreate(&start);
+   cudaEventCreate(&stop);
+ 
+-  long max_size = 8192;
++  long max_size = getenv("MN") ? atol(getenv("MN")) : 8192;
+   long m = max_size, n = max_size, k = max_size;
+ 
+   bf16 *A = nullptr, *B = nullptr, *C = nullptr,
+@@ -169,10 +171,12 @@ int main() {
+ 
+   int repeat_times = 8;
+   bool run_verif = true;
+-  for (int kernel_num : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}) {
++  std::vector<int> kernels; { const char* ks = getenv("KERNELS"); std::string str = ks ? ks : "0,5,6,7,8,9,10,11,12"; size_t p = 0; while (p < str.size()) { size_t q = str.find(',', p); if (q == std::string::npos) q = str.size(); kernels.push_back(atoi(str.substr(p, q-p).c_str())); p = q + 1; } }
++  if (getenv("REPEAT")) repeat_times = atoi(getenv("REPEAT"));
++  for (int kernel_num : kernels) {
+     // for (int kernel_num : {0, 11}) {
+     // Give the GPU some rest to avoid thermal throttling
+-    sleep(5);
++    sleep(1);
+     std::cout << "KERNEL " << kernel_num << std::endl;
+     // Verify against cuBLAS. Also serves as a warmup step.
+     if (run_verif) {

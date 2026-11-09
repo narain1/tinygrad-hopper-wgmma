@@ -1,0 +1,11 @@
+==WARNING== Note: Running with uncontrolled GPU caches. Profiling results may be inconsistent.
+==WARNING== Note: Running with unmodified GPU clocks. If not controlled otherwise, profiling results may be inconsistent.
+==PROF== Connected to process 249 (/usr/local/bin/python3)
+KERNEL stock 4096x4096x4096
+==PROF== Disconnected from process 249
+"ID","Process ID","Process Name","Host Name","Kernel Name","Context","Stream","Block Size","Grid Size","Device","CC","Section Name","Metric Name","Metric Unit","Metric Value"
+"0","249","python3","127.0.0.1","r_64_32_4_32_2_2_2_4_4_256","1","13","(32, 4, 1)","(32, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","3200800"
+"1","249","python3","127.0.0.1","r_64_32_4_32_2_2_2_4_4_256","1","13","(32, 4, 1)","(32, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","3199872"
+"2","249","python3","127.0.0.1","r_64_32_4_32_2_2_2_4_4_256","1","13","(32, 4, 1)","(32, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","3363104"
+"3","249","python3","127.0.0.1","r_64_32_4_32_2_2_2_4_4_256","1","13","(32, 4, 1)","(32, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","3214400"
+"4","249","python3","127.0.0.1","r_64_32_4_32_2_2_2_4_4_256","1","13","(32, 4, 1)","(32, 64, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","3204384"

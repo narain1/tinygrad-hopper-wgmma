@@ -1,0 +1,34 @@
+[
+ {
+  "label": "fastcu-k4-4096",
+  "rc": 0
+ },
+ {
+  "label": "fastcu-k5-4096",
+  "rc": 0
+ },
+ {
+  "label": "fastcu-k7-4096",
+  "rc": 0
+ },
+ {
+  "label": "fastcu-k8-4096",
+  "rc": 0
+ },
+ {
+  "label": "fastcu-k10-4096",
+  "rc": 0
+ },
+ {
+  "label": "fastcu-k11-4096",
+  "rc": 0
+ },
+ {
+  "label": "fastcu-k12-4096",
+  "rc": 0
+ },
+ {
+  "label": "fastcu-k12-8192",
+  "rc": 0
+ }
+]

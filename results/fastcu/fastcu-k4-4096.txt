@@ -1,0 +1,14 @@
+==WARNING== Note: Running with uncontrolled GPU caches. Profiling results may be inconsistent.
+==WARNING== Note: Running with unmodified GPU clocks. If not controlled otherwise, profiling results may be inconsistent.
+==PROF== Connected to process 77 (/opt/fastcu_mm)
+KERNEL 4
+Average elapsed time: (0.004782) s, performance: (   28.7) TFLOPS. size: (4096).
+
+==PROF== Disconnected from process 77
+"ID","Process ID","Process Name","Host Name","Kernel Name","Context","Stream","Block Size","Grid Size","Device","CC","Section Name","Metric Name","Metric Unit","Metric Value"
+"0","77","fastcu_mm","127.0.0.1","warmupKernel()","1","7","(1024, 1, 1)","(1024, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","2208"
+"1","77","fastcu_mm","127.0.0.1","nvjet_tst_256x128_64x4_1x2_h_bz_coopA_TNT","1","7","(384, 1, 1)","(2, 66, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","175744"
+"2","77","fastcu_mm","127.0.0.1","void M4::matmulKernel4<128, 128, 64, 256, 5>(int, int, int, __nv_bfloat16 *, const CUtensorMap_st *, const CUtensorMap_st *)","1","7","(256, 1, 1)","(1024, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","266816"
+"3","77","fastcu_mm","127.0.0.1","void M4::matmulKernel4<128, 128, 64, 256, 5>(int, int, int, __nv_bfloat16 *, const CUtensorMap_st *, const CUtensorMap_st *)","1","7","(256, 1, 1)","(1024, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","267200"
+"4","77","fastcu_mm","127.0.0.1","void M4::matmulKernel4<128, 128, 64, 256, 5>(int, int, int, __nv_bfloat16 *, const CUtensorMap_st *, const CUtensorMap_st *)","1","7","(256, 1, 1)","(1024, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","266880"
+"5","77","fastcu_mm","127.0.0.1","void M4::matmulKernel4<128, 128, 64, 256, 5>(int, int, int, __nv_bfloat16 *, const CUtensorMap_st *, const CUtensorMap_st *)","1","7","(256, 1, 1)","(1024, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","267328"

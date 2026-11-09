@@ -1,0 +1,14 @@
+==WARNING== Note: Running with uncontrolled GPU caches. Profiling results may be inconsistent.
+==WARNING== Note: Running with unmodified GPU clocks. If not controlled otherwise, profiling results may be inconsistent.
+==PROF== Connected to process 77 (/opt/fastcu_mm)
+KERNEL 10
+Average elapsed time: (0.004998) s, performance: (   27.5) TFLOPS. size: (4096).
+
+==PROF== Disconnected from process 77
+"ID","Process ID","Process Name","Host Name","Kernel Name","Context","Stream","Block Size","Grid Size","Device","CC","Section Name","Metric Name","Metric Unit","Metric Value"
+"0","77","fastcu_mm","127.0.0.1","warmupKernel()","1","7","(1024, 1, 1)","(1024, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","2176"
+"1","77","fastcu_mm","127.0.0.1","nvjet_tst_256x128_64x4_1x2_h_bz_coopA_TNT","1","7","(384, 1, 1)","(2, 66, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","175808"
+"2","77","fastcu_mm","127.0.0.1","void M10::matmulKernel10<128, 256, 64, 384, 3, 128, 2, 1>(int, int, int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)","1","7","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","183456"
+"3","77","fastcu_mm","127.0.0.1","void M10::matmulKernel10<128, 256, 64, 384, 3, 128, 2, 1>(int, int, int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)","1","7","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","181952"
+"4","77","fastcu_mm","127.0.0.1","void M10::matmulKernel10<128, 256, 64, 384, 3, 128, 2, 1>(int, int, int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)","1","7","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","183168"
+"5","77","fastcu_mm","127.0.0.1","void M10::matmulKernel10<128, 256, 64, 384, 3, 128, 2, 1>(int, int, int, CUtensorMap_st, CUtensorMap_st, CUtensorMap_st)","1","7","(384, 1, 1)","(128, 1, 1)","0","9.0","Command line profiler metrics","gpu__time_duration.sum","ns","182944"

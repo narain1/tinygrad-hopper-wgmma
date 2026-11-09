@@ -66,7 +66,8 @@ def install_runtime_hooks() -> None:
   def render_kernel(renderer, function_name, kernel, bufs, uops, prefix=None):
     renderer._hopper_kernel_name = function_name
     source = old_render_kernel(renderer, function_name, kernel, bufs, uops, prefix)
-    match = re.search(r"_cl(2)$", function_name)
+    # a trailing _cl<N> in the kernel name asks for __cluster_dims__(N,1,1). Consecutive blockIdx.x form a cluster
+    match = re.search(r"_cl(\d+)$", function_name)
     if match:
       source = source.replace(f") {function_name}(", f") __cluster_dims__({match.group(1)},1,1) {function_name}(", 1)
     return source
