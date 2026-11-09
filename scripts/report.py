@@ -61,6 +61,11 @@ def main(root: Path) -> str:
     for (k, n), v in sorted(fc.items(), key=lambda kv: (kv[0][1], kv[0][0])):
       out.append(f"| k{k} | {n} | {v:.1f} | {T.tflops(v, n, n, n):.0f} |")
     out.append("")
+  if (root / "sm132/sm132-4096.txt").exists():
+    txt = (root / "sm132/sm132-4096.txt").read_text(); t, lab = T.parse(txt), T.labels(txt)
+    by = {lab[k]: v for k, v in t.items() if k in lab}
+    out += ["## 128 vs 132 persistent CTAs, N=4096", "", "| CTAs | us | TFLOPS |", "|---:|---:|---:|"]
+    out += [f"| {c} | {by[k]:.1f} | {T.tflops(by[k], 4096, 4096, 4096):.0f} |" for c, k in ((128, "tma_store"), (132, "tma_store_132"))] + [""]
   shapes = sorted((root / "shapes").glob("shape-*.txt"), key=lambda p: [int(x) for x in p.stem[6:].split("x")][::-1] and shape_of(p.stem[6:]))
   if shapes:
     out += ["## Shapes", "", "Best of `role_split`, `tma_store`, `hilbert`, and the BN=192 variants that divide the shape, against cuBLAS (torch).", "",

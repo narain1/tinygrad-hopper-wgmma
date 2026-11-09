@@ -4,6 +4,7 @@
   modal run modal_runner.py --action ladder   # Nsight Compute: the ladder + cuBLAS + stock tinygrad, N=4096 and 8192
   modal run modal_runner.py --action shapes   # Nsight Compute: configs vs cuBLAS over 12 shapes
   modal run modal_runner.py --action fastcu   # Nsight Compute: pranjalssh/fast.cu kernels on the same GPU
+  modal run modal_runner.py --action sm132    # Nsight Compute: 128 vs 132 persistent CTAs
 
 Raw Nsight output and the tool versions land in results/. Only the actions above exist: this is not a generic runner.
 """
@@ -49,9 +50,11 @@ def _sh(cmd: str) -> str:
 
 @app.function(image=image, gpu="H200", timeout=3600)
 def smoke() -> tuple[int, str]:
-  r = subprocess.run([sys.executable, "/work/scripts/smoke.py"], cwd="/work", env={**os.environ, **REMOTE_ENV},
-                     text=True, capture_output=True, check=False)
-  return r.returncode, r.stdout + r.stderr[-3000:]
+  env, text, rc = {**os.environ, **REMOTE_ENV}, "", 0
+  for script in ("smoke.py", "times_two.py"):
+    r = subprocess.run([sys.executable, f"/work/scripts/{script}"], cwd="/work", env=env, text=True, capture_output=True, check=False)
+    text, rc = text + r.stdout + r.stderr[-3000:], rc or r.returncode
+  return rc, text
 
 
 @app.function(image=image, gpu="H200", timeout=3600)
@@ -92,6 +95,8 @@ def _jobs(action: str) -> list[dict]:
     return jobs + [tg("stock-4096", "4096", "", "^r_", ["--stock"])]
   if action == "shapes":
     return [tg(f"shape-{s}", s, SWEEP_CONFIGS, "hopper|nvjet|sm90", ["--torch", "--check"]) for s in SHAPES]
+  if action == "sm132":
+    return [tg("sm132-4096", "4096", "tma_store,tma_store_132", "hopper|nvjet|sm90", ["--torch", "--check"])]
   if action == "fastcu":
     jobs = [{"label": f"fastcu-k{k}-4096", "kind": "fastcu", "env": {"MN": "4096", "KERNELS": str(k), "REPEAT": "3"}}
             for k in FASTCU_KERNELS]

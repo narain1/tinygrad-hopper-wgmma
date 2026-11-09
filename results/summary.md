@@ -58,6 +58,13 @@ A second full run of the N=4096 ladder (`ladder-repeat/`) differs from the first
 | k12 | 4096 | 177.9 | 773 |
 | k12 | 8192 | 1359.3 | 809 |
 
+## 128 vs 132 persistent CTAs, N=4096
+
+| CTAs | us | TFLOPS |
+|---:|---:|---:|
+| 128 | 181.8 | 756 |
+| 132 | 185.7 | 740 |
+
 ## Shapes
 
 Best of `role_split`, `tma_store`, `hilbert`, and the BN=192 variants that divide the shape, against cuBLAS (torch).

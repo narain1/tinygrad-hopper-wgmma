@@ -30,3 +30,8 @@ SWEEP = {
   "tma_store_n192": WSCfg(BN=192, tma_store=True),
   "hilbert_n192": WSCfg(BN=192, tma_store=True, hilbert=True),
 }
+
+# One-off comparisons quoted in the blog post.
+EXTRA = {
+  "tma_store_132": WSCfg(tma_store=True, num_sm=132),   # all SMs instead of 128: 512 tiles / 132 CTAs leaves a partial wave
+}

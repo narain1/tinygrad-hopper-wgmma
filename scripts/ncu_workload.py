@@ -1,7 +1,7 @@
 """Launch GEMMs for Nsight Compute. This script does no timing of its own: run it under ``ncu`` (see modal_runner.py).
 
   --shape MxNxK   problem size (or a single N for a square GEMM)
-  --configs a,b   names from hopper_wgmma.ladder.LADDER / SWEEP; invalid ones for the shape are skipped and reported
+  --configs a,b   names from hopper_wgmma.ladder.LADDER / SWEEP / EXTRA; invalid ones for the shape are skipped and reported
   --torch         also launch cuBLAS (torch) on the same inputs
   --stock         instead launch tinygrad's own bf16 matmul on the same shape (tensor cores via mma.sync)
   --check         compare each config with cuBLAS once before the timed launches
@@ -17,7 +17,7 @@ install_runtime_hooks()
 
 from tinygrad import Device, Tensor, dtypes  # noqa: E402
 
-from hopper_wgmma.ladder import LADDER, SWEEP, build  # noqa: E402
+from hopper_wgmma.ladder import EXTRA, LADDER, SWEEP, build  # noqa: E402
 
 
 def parse_shape(text: str) -> tuple[int, int, int]:
@@ -51,7 +51,7 @@ def main() -> int:
     Device["CUDA"].synchronize()
     print(f"KERNEL stock {M}x{N}x{K}")
   for name in [n for n in args.configs.split(",") if n]:
-    cfg = {**LADDER, **SWEEP}[name]
+    cfg = {**LADDER, **SWEEP, **EXTRA}[name]
     try:
       run = build(N, cfg, M, K)
       launch = run(a, b, c)
